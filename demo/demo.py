@@ -15,8 +15,8 @@ sys.path.insert(0, osp.join('..', 'common'))
 from config import cfg
 from model import get_pose_net
 from dataset import generate_patch_image
-from utils.pose_utils import process_bbox, pixel2cam
-from utils.vis import vis_keypoints, vis_3d_multiple_skeleton
+from utils_pose.pose_utils import process_bbox, pixel2cam
+from utils_pose.vis import vis_keypoints, vis_3d_multiple_skeleton
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -71,8 +71,8 @@ bbox_list = [
 [540.04, 48.81, 99.96, 223.36],\
 [372.58, 170.84, 266.63, 217.19],\
 [0.5, 43.74, 90.1, 220.09]] # xmin, ymin, width, height
-root_depth_list = [11250.5732421875, 15522.8701171875, 11831.3828125, 8852.556640625, 12572.5966796875] # obtain this from RootNet (https://github.com/mks0601/3DMPPE_ROOTNET_RELEASE/tree/master/demo)
-assert len(bbox_list) == len(root_depth_list)
+#root_depth_list = [11250.5732421875, 15522.8701171875, 11831.3828125, 8852.556640625, 12572.5966796875] # obtain this from RootNet (https://github.com/mks0601/3DMPPE_ROOTNET_RELEASE/tree/master/demo)
+#assert len(bbox_list) == len(root_depth_list)
 person_num = len(bbox_list)
 
 # normalized camera intrinsics
@@ -92,7 +92,7 @@ for n in range(person_num):
     # forward
     with torch.no_grad():
         pose_3d = model(img) # x,y: pixel, z: root-relative depth (mm)
-
+        
     # inverse affine transform (restore the crop and resize)
     pose_3d = pose_3d[0].cpu().numpy()
     pose_3d[:,0] = pose_3d[:,0] / cfg.output_shape[1] * cfg.input_shape[1]
@@ -103,9 +103,9 @@ for n in range(person_num):
     output_pose_2d_list.append(pose_3d[:,:2].copy())
     
     # root-relative discretized depth -> absolute continuous depth
-    pose_3d[:,2] = (pose_3d[:,2] / cfg.depth_dim * 2 - 1) * (cfg.bbox_3d_shape[0]/2) + root_depth_list[n]
-    pose_3d = pixel2cam(pose_3d, focal, princpt)
-    output_pose_3d_list.append(pose_3d.copy())
+    # pose_3d[:,2] = (pose_3d[:,2] / cfg.depth_dim * 2 - 1) * (cfg.bbox_3d_shape[0]/2) + root_depth_list[n]
+    # pose_3d = pixel2cam(pose_3d, focal, princpt)
+    # output_pose_3d_list.append(pose_3d.copy())
 
 # visualize 2d poses
 vis_img = original_img.copy()
