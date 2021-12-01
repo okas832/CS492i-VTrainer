@@ -5,8 +5,8 @@ import cv2
 from config import cfg
 import torch
 from base import Tester
-from utils.vis import vis_keypoints
-from utils.pose_utils import flip
+from utils_pose.vis import vis_keypoints
+from utils_pose.pose_utils import flip
 import torch.backends.cudnn as cudnn
 
 def parse_args():
