@@ -1,0 +1,1 @@
+python vtrainer_train.py --gpu 1 --dataset_num 3 --visualization --extra_tag 3/

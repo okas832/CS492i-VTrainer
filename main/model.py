@@ -92,7 +92,7 @@ class ResPoseNet(nn.Module):
         coord = soft_argmax(hm, self.joint_num)
         
         if target is None:
-            return coord
+            return coord, fm
         else:
             target_coord = target['coord']
             target_vis = target['vis']

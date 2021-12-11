@@ -36,6 +36,7 @@ class Config:
     bbox_3d_shape = (2000, 2000, 2000) # depth, height, width
     pixel_mean = (0.485, 0.456, 0.406)
     pixel_std = (0.229, 0.224, 0.225)
+    bbox_real = (2000, 2000) # Human36M, MuCo, MuPoTS: (2000, 2000), PW3D: (2, 2)
 
     ## training config
     lr_dec_epoch = [17, 21]

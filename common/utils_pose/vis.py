@@ -6,7 +6,10 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from config import cfg
 from matplotlib import animation 
+from matplotlib.axes._axes import _log as matplotlib_axes_logger
+matplotlib_axes_logger.setLevel('ERROR')
 def vis_keypoints(img, kps, kps_lines, joints_name, kp_thresh=0.4, alpha=1):
+
 
     # Convert from plt 0-1 RGBA colors to 0-255 BGR colors for opencv.
     cmap = plt.get_cmap('rainbow')
@@ -30,14 +33,16 @@ def vis_keypoints(img, kps, kps_lines, joints_name, kp_thresh=0.4, alpha=1):
                 kp_mask, p1,
                 radius=3, color=colors[l], thickness=-1, lineType=cv2.LINE_AA)
             if check[i1] == 0:
-                cv2.putText(kp_mask, joints_name[i1], p1, 1, fontScale=0.5, color=colors[l], thickness=1)
+                # cv2.putText(kp_mask, joints_name[i1], p1, 1, fontScale=0.5, color=colors[l], thickness=1)
+                cv2.putText(kp_mask, str(i1), p1, 1, fontScale=1, color=colors[l], thickness=1)
                 check[i1] = 1
         if kps[2, i2] > kp_thresh:
             cv2.circle(
                 kp_mask, p2,
                 radius=3, color=colors[l], thickness=-1, lineType=cv2.LINE_AA)
             if check[i2] == 0:
-                cv2.putText(kp_mask, joints_name[i2], p1, 1, fontScale=0.5, color=colors[l], thickness=1)
+                # cv2.putText(kp_mask, joints_name[i2], p2, 1, fontScale=0.5, color=colors[l], thickness=1)
+                cv2.putText(kp_mask, str(i2), p2, 1, fontScale=1, color=colors[l], thickness=1)
                 check[i2] = 1
 
     # Blend the keypoints.
@@ -47,6 +52,14 @@ def vis_3d_skeleton(kpt_3d, kpt_3d_vis, kps_lines, filename=None, out_dir=None):
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
+    root_point = kpt_3d[14]
+    x_max = root_point[0] + 1000
+    x_min = root_point[0] - 1000
+    y_max = root_point[1] + 2000
+    y_min = 0
+    z_max = root_point[2] + 1000
+    z_min = root_point[2] - 1000
+    
 
     # Convert from plt 0-1 RGBA colors to 0-255 BGR colors for opencv.
     cmap = plt.get_cmap('rainbow')
@@ -72,13 +85,19 @@ def vis_3d_skeleton(kpt_3d, kpt_3d_vis, kps_lines, filename=None, out_dir=None):
     else:
         ax.set_title(filename)
 
+    ax.set_xlim(x_min, x_max)
+    ax.set_zlim(y_min, y_max)
+    ax.set_ylim(z_min, z_max)
+
     ax.set_xlabel('X Label')
     ax.set_ylabel('Z Label')
     ax.set_zlabel('Y Label')
-    ax.legend()
+    #ax.legend()
     
     plt.savefig(out_dir + filename)
-    cv2.waitKey(0)
+    plt.cla()
+    plt.close(fig)
+    
 
 def vis_3d_multiple_skeleton(kpt_3d, kpt_3d_vis, kps_lines, filename=None,  out_dir=None):
 
@@ -115,11 +134,11 @@ def vis_3d_multiple_skeleton(kpt_3d, kpt_3d_vis, kps_lines, filename=None,  out_
 
     ax.set_xlim(-3000, 3000)
     ax.set_zlim(-3000, 3000)
-    ax.set_ylim(7000, 13000)
+    ax.set_ylim(0, 2000)
     ax.set_xlabel('X Label')
     ax.set_ylabel('Z Label')
     ax.set_zlabel('Y Label')
-    ax.legend()
+    #ax.legend()
     
     plt.savefig(out_dir + filename)
     
