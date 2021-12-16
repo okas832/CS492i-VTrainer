@@ -28,42 +28,12 @@ from model_rootnet import get_root_net
 from classifier import classifier
 from dataset import generate_patch_image
 from utils_pose.pose_utils import process_bbox, pixel2cam
-from vtrainer_utils import xyxy2xywh, select_biggest_box, joint_angle, get_joint_info_1, plot_grad_flow
+from vtrainer_utils import xyxy2xywh, select_biggest_box, joint_angle, get_joint_info_1, plot_grad_flow, fontscale, load_data
 from utils_pose.vis import vis_keypoints, vis_3d_multiple_skeleton, vis_3d_skeleton
 from glob import glob 
 from pathlib import Path
 import copy
 import math
-
-def fontscale(width):
-    #1500일때 1
-    return width/1500
-def load_data(train, dataset_num):
-    if train:
-        mode = f'train_{dataset_num}'
-    else:
-        mode = f'test_{dataset_num}'
-
-    target_1 = [] #target_1: is plank or not   (1: good_images + bad_plank / 0: not_plank)
-    target_2 = [] #target_2: good plank or bad plank (1: good_images / 0: bad_plank + not_plank)
-    ####### For mini batch, need to revised
-
-    # dataset_set
-    good_images = glob(f'../dataset/{mode}/good/*.png')
-    bad_plank_images = glob(f'../dataset/{mode}/bad/bad_plank/*.png')
-    not_plank_images = glob(f'../dataset/{mode}/bad/bad_not_plank/*.png')
-
-    good_target_1 = [1. for _ in range(len(good_images) + len(bad_plank_images))]
-    bad_target_1 = [0. for _ in range(len(not_plank_images))]
-
-    good_target_2 = [1. for _ in range(len(good_images))]
-    bad_target_2 = [0. for _ in range(len(bad_plank_images) + len(not_plank_images))]
-
-    images = good_images + bad_plank_images + not_plank_images
-    targets_1 = good_target_1 + bad_target_1
-    targets_2 = good_target_2 + bad_target_2
-
-    return images, targets_1, targets_2
 
 
 def evaluate_visualization(args, posenet, rootnet, detector, cls_net_1, cls_net_2, images, targets_1, targets_2, extra_tag):
@@ -279,86 +249,6 @@ def evaluate_visualization(args, posenet, rootnet, detector, cls_net_1, cls_net_
     acc_3 = total_correct_2 / gt_plank_count # 실제 plank인 이미지 중에서 좋은 plank인지 아닌지
     return acc_1*100, acc_2*100, acc_3*100
 
-
-
-
-
-        # # plank가 아님 
-        # if batch_target_1.item() == 0:
-        #     if args.visualization:
-        #         # visualize 2d poses
-        #         vis_img = original_img.copy()
-            
-        #         vis_kps = np.zeros((3,joint_num))
-        #         vis_kps[0,:] = joint_coor_2d[:,0]
-        #         vis_kps[1,:] = joint_coor_2d[:,1]
-        #         vis_kps[2,:] = 1
-        #         vis_img = vis_keypoints(vis_img, vis_kps, skeleton, joints_name)
-        #         import pdb
-        #         pdb.set_trace()
-        #         print(vis_img.shape)
-        #         fs = fontscale(vis_img.shape[1])
-        #         if pred.item() < 0.5:
-        #             cv2.putText(vis_img, 'GT: No Plank / Predict: No plank', (50,50), 2, fontScale=fs, color=(0,255,0), thickness=2)
-        #         else:
-        #             cv2.putText(vis_img, 'GT: No Plank / Predict: It is plank', (50,50), 2, fontScale=fs, color=(0,0,255), thickness=2)
-            
-        #         cv2.imwrite(f'{output_dir}output_{image_idx}_2d.jpg', vis_img)
-                
-        #         # visualize 3d poses
-        #         #vis_kps = np.array(output_pose_3d_list)
-        #         #vis_3d_skeleton(joint_coor_3d, np.ones_like(joint_coor_3d), skeleton, f'output_{i}_3d (x,y,z: camera-centered. mm.).jpg', args.image_dir+f'/3d_results/')
-        # # plank 임 
-        # else:
-        #     detected_plank_count += (pred.view(-1).round() == 1).sum()
-        #     #############################
-        #     ### second classification ###
-        #     #############################
-
-        #     pred = cls_net_2(batch_feature_2, batch_joint_info_2.cuda())
-        #     #loss_2 = criterion_2(pred.view(-1), batch_target_2)
-        #     correct_2 = (pred.view(-1).round() == batch_target_2).sum()
-        #     total_correct_2 += correct_2
-
-        #     if args.visualization:
-        #         # visualize 2d poses
-        #         vis_img = original_img.copy()
-            
-        #         vis_kps = np.zeros((3,joint_num))
-        #         vis_kps[0,:] = joint_coor_2d[:,0]
-        #         vis_kps[1,:] = joint_coor_2d[:,1]
-        #         vis_kps[2,:] = 1
-        #         vis_img = vis_keypoints(vis_img, vis_kps, skeleton, joints_name)
-        #         fs = fontscale(img.shape[1])
-        #         if batch_target_2.item() == 0 and pred.item() < 0.5:
-        #             cv2.putText(vis_img, f'GT: Not good plank / Predict: Not good plank, confidence: {pred.item()}', (50,50), 2, fontScale=fs, color=(0,255,0), thickness=2)
-        #         elif batch_target_2.item() == 0 and pred.item() >= 0.5:
-        #             cv2.putText(vis_img, f'GT: Not good plank / Predict: Good Plank, confidence: {pred.item()} ', (50,50), 2, fontScale=fs, color=(0,0,255), thickness=2)
-        #         elif batch_target_2.item() == 1 and pred.item() < 0.5:
-        #             cv2.putText(vis_img, f'GT: Good Plank / Predict: Not good plank, confidence: {pred.item()}', (50,50), 2, fontScale=fs, color=(0,0,255), thickness=2)
-        #         elif batch_target_2.item() == 1 and pred.item() >= 0.5:
-        #             cv2.putText(vis_img, f'GT: Good Plank / Predict: Good plank, confidence: {pred.item()}', (50,50), 2, fontScale=fs, color=(0,255,0), thickness=2)
-
-        #         cv2.imwrite(f'{output_dir}output_{image_idx}_2d.jpg', vis_img)
-                
-        #         # visualize 3d poses
-        #         #vis_kps = np.array(output_pose_3d_list)
-        #         #vis_3d_skeleton(joint_coor_3d, np.ones_like(joint_coor_3d), skeleton, f'output_{i}_3d (x,y,z: camera-centered. mm.).jpg', args.image_dir+f'/3d_results/')
-            
-
-        # # print(f'loss_1: {loss_1.item()} // loss_2:{loss_2.item()}')
-
-        # # initialization
-        # # batch_feature = []
-        # # batch_joint = []
-        # # batch_target_1 = []
-        # # batch_target_2 = []
-
-    # acc_1 = total_correct_1 / len(images) #(전체 이미지 중에서 plank 인지 아닌지)
-    # acc_2 = total_correct_2 / detected_plank_count #(plank로 detection 것 중에서 좋은plank 인지 아닌지)
-    # acc_3 = total_correct_2 / gt_plank_count # 실제 plank인 이미지 중에서 좋은 plank인지 아닌지
-    # return acc_1*100, acc_2*100, acc_3*100
-
 def evaluate(args, posenet, rootnet, detector, cls_net_1, cls_net_2, images, targets_1, targets_2):
     # Setting
     # MuCo joint set
@@ -485,12 +375,13 @@ def evaluate(args, posenet, rootnet, detector, cls_net_1, cls_net_2, images, tar
             correct_1 = (pred.view(-1).round() == batch_target_1).sum()
             total_correct_1 += correct_1
             
-            not_plank_correct_count += ((pred.view(-1).round() == batch_target_1) & (batch_target_1 == 0)).sum()
+            
+            not_plank_correct_count += ((pred.view(-1).round() == batch_target_1) * (batch_target_1 == 0)).sum()
             # plot_grad_flow(cls_net_1.named_parameters(),'cls_net_1')
         
-            batch_feature_2 = batch_feature[(pred.view(-1).round() == 1) & (pred.view(-1).round() == batch_target_1)]
-            batch_joint_info_2 = batch_joint_info[(pred.view(-1).round() == 1) &(pred.view(-1).round() == batch_target_1)] 
-            batch_target_2 = batch_target_2[(pred.view(-1).round() == 1) & (pred.view(-1).round() == batch_target_1)]
+            batch_feature_2 = batch_feature[(pred.view(-1).round() == 1) * (pred.view(-1).round() ==batch_target_1)]
+            batch_joint_info_2 = batch_joint_info[(pred.view(-1).round() == 1) * (pred.view(-1).round() == batch_target_1)] 
+            batch_target_2 = batch_target_2[(pred.view(-1).round() == 1) * (pred.view(-1).round() ==  batch_target_1)]
 
 
             if (pred.view(-1).round() == 1).sum() != 0:
@@ -513,6 +404,13 @@ def evaluate(args, posenet, rootnet, detector, cls_net_1, cls_net_2, images, tar
             batch_target_1 = []
             batch_target_2 = []
 
+    print(f"Total Test image: {len(images)}")
+    print(f'Total gt plank: {int(gt_plank_count)}')
+    print(f'Total detected plank: {detected_plank_count}' )
+
+    print(f'total_correct_2: {total_correct_2}')
+    print(f'not_plank_correct_count: {not_plank_correct_count}')
+
     acc_1 = total_correct_1 / len(images) #(전체 이미지 중에서 plank 인지 아닌지)
     acc_2 = (not_plank_correct_count + total_correct_2) / len(images) # 전체이미지에서 좋은 plank인지 아닌지 
     # acc_2 = total_correct_2 / detected_plank_count #(plank로 detection 것 중에서 좋은plank 인지 아닌지)
@@ -520,8 +418,6 @@ def evaluate(args, posenet, rootnet, detector, cls_net_1, cls_net_2, images, tar
     return acc_1*100, acc_2*100, acc_3*100
 
     
-    
-
 def train(args, epoch, posenet, rootnet, detector, cls_net_1, cls_net_2, optimizer_1, optimizer_2, criterion_1, criterion_2, images, targets_1, targets_2,  weight_output_dir):
     # Setting
     # MuCo joint set
@@ -812,29 +708,3 @@ if __name__ ==  '__main__':
         print(f'acc_1(plank or not): {acc_1}%')
         print(f'acc_2(good plank or not(among the detected plank): {acc_2}%')
         print(f'acc_3(good plank or not(among the gt plank): {acc_3}%')
-
-
-
-    # joints_name = (
-    #     'Head_top', 
-    #     'Thorax', 
-    #     'R_Shoulder', 
-    #     'R_Elbow', 
-    #     'R_Wrist', 
-    #     'L_Shoulder', 
-    #     'L_Elbow', 
-    #     'L_Wrist', 
-    #     'R_Hip', 
-    #     'R_Knee', 
-    #     'R_Ankle', 
-    #     'L_Hip', 
-    #     'L_Knee', 
-    #     'L_Ankle', 
-    #     'Pelvis', root!!
-    #     'Spine', 
-    #     'Head', 
-    #     'R_Hand', 
-    #     'L_Hand', 
-    #     'R_Toe', 
-    #     'L_Toe'
-    #     )

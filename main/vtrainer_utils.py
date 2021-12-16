@@ -3,6 +3,7 @@ import torch
 import copy
 import math
 import matplotlib.pyplot as plt
+from glob import glob 
 
 def xyxy2xywh(labels):
     #minx, miny, maxx, maxy
@@ -164,3 +165,36 @@ def plot_grad_flow_v2(named_parameters):
     plt.legend([Line2D([0], [0], color="c", lw=4),
                 Line2D([0], [0], color="b", lw=4),
                 Line2D([0], [0], color="k", lw=4)], ['max-gradient', 'mean-gradient', 'zero-gradient'])
+
+
+def fontscale(width):
+    #1500일때 1
+    return width/1500
+
+
+def load_data(train, dataset_num):
+    if train:
+        mode = f'train_{dataset_num}'
+    else:
+        mode = f'test_{dataset_num}'
+
+    target_1 = [] #target_1: is plank or not   (1: good_images + bad_plank / 0: not_plank)
+    target_2 = [] #target_2: good plank or bad plank (1: good_images / 0: bad_plank + not_plank)
+    ####### For mini batch, need to revised
+
+    # dataset_set
+    good_images = glob(f'../dataset/{mode}/good/*.png')
+    bad_plank_images = glob(f'../dataset/{mode}/bad/bad_plank/*.png')
+    not_plank_images = glob(f'../dataset/{mode}/bad/bad_not_plank/*.png')
+
+    good_target_1 = [1. for _ in range(len(good_images) + len(bad_plank_images))]
+    bad_target_1 = [0. for _ in range(len(not_plank_images))]
+
+    good_target_2 = [1. for _ in range(len(good_images))]
+    bad_target_2 = [0. for _ in range(len(bad_plank_images) + len(not_plank_images))]
+
+    images = good_images + bad_plank_images + not_plank_images
+    targets_1 = good_target_1 + bad_target_1
+    targets_2 = good_target_2 + bad_target_2
+
+    return images, targets_1, targets_2
