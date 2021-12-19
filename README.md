@@ -284,9 +284,15 @@ You need to download both pretrained model weights.
 
 [posenet](https://drive.google.com/file/d/1GV60hVpKKRpXjBBbYJ6poWJeDl_Ln1fD/view?usp=sharing)
 
+
+Change the name 'snapshot_24.pth.tar' to 'posenet_weight.pth.tar'
+
+
 [rootnet](https://drive.google.com/file/d/1heFZLbm1GEMOEjvBB5Z3nvVREwYSPuGe/view?usp=sharing)
 
   
+Change the name 'snapshot_18.pth.tar' to 'rootnet_weight.pth.tar'
+
 
 Put the weight in
 
