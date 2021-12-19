@@ -5,6 +5,8 @@ import math
 import matplotlib.pyplot as plt
 from glob import glob 
 
+# convert box coordinate format 
+# top-left point, bottom right point -> center x, center y, width, height
 def xyxy2xywh(labels):
     #minx, miny, maxx, maxy
     width = labels[:,2] - labels[:,0] 
@@ -15,6 +17,7 @@ def xyxy2xywh(labels):
 
     return labels
 
+# Select biggest box 
 def select_biggest_box(boxes):
     max_idx = 0
     max_area = 0
@@ -30,7 +33,7 @@ def select_biggest_box(boxes):
             max_idx = i
     return boxes[max_idx:max_idx+1,:]
 
-# Compute joint angle 
+# Th function that compute joint angle 
 def joint_angle(joints, end_point1, end_point2, inter_point):
     v1 = joints[end_point1, :] - joints[inter_point,:]
     v2 = joints[end_point2,:] - joints[inter_point,:]
@@ -38,14 +41,15 @@ def joint_angle(joints, end_point1, end_point2, inter_point):
     angle = torch.arccos(torch.dot(v1,v2) / (torch.linalg.norm(v1)*torch.linalg.norm(v2))) # radian 
 
     return angle
-
+# Choose visible body part. If the depth of R_shoulder smaller than L_shoulder, we define right parts as visible parts.
 def left_right(joints):
     # joints[2][2]: R_shoulder의 z
     # joints[5][2]: L_shoulder의 z
 
     # True 왼쪽이 카메라쪽, False: 오른쪽이 카메라쪽 
     return joints[2,2] > joints[5,2]
-       
+
+# We compute specific joint angle for classifier.
 def get_joint_info_1(joints): # (32, 21, 3)
     joint_info = torch.zeros((joints.shape[0],17)).cuda()
 
@@ -118,7 +122,9 @@ def get_joint_info_1(joints): # (32, 21, 3)
     # 20    'L_Toe'
     #     )
 
-
+# for check grad_flow.
+# This is just for check. 
+# We get from stackoverflow
 def plot_grad_flow(named_parameters, model_name):
     ave_grads = []
     layers = []
@@ -171,7 +177,7 @@ def fontscale(width):
     #1500일때 1
     return width/1500
 
-
+# Load split dataset by its number 
 def load_data(train, dataset_num):
     if train:
         mode = f'train_{dataset_num}'

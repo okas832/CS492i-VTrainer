@@ -357,24 +357,22 @@ def evaluate(args, posenet, rootnet, detector, cls_net_1, cls_net_2, images, tar
             batch_joint = torch.cat(batch_joint, dim=0).cuda()
             batch_target_1 = torch.tensor(batch_target_1).cuda()
             batch_target_2 = torch.tensor(batch_target_2).cuda()
-            # import pdb
-            # pdb.set_trace()
+      
             ###################################
             ####### classification part #######
             ###################################
-            # Train
 
             batch_joint_info = get_joint_info_1(batch_joint) # make feature from raw 3d joint coord
             pred = cls_net_1(batch_feature, batch_joint_info.cuda())
 
-            #loss_1 = criterion_1(pred.view(-1), batch_target_1)
+            # predict plank or not
             correct_1 = (pred.view(-1).round() == batch_target_1).sum()
             total_correct_1 += correct_1
             
-            
+            #
             not_plank_correct_count += ((pred.view(-1).round() == batch_target_1) * (batch_target_1 == 0)).sum()
-            # plot_grad_flow(cls_net_1.named_parameters(),'cls_net_1')
-        
+            
+            # Only images that first classifier predicted as plank and also real target value is plank are fed into second classifier
             batch_feature_2 = batch_feature[(pred.view(-1).round() == 1) * (pred.view(-1).round() ==batch_target_1)]
             batch_joint_info_2 = batch_joint_info[(pred.view(-1).round() == 1) * (pred.view(-1).round() == batch_target_1)] 
             batch_target_2 = batch_target_2[(pred.view(-1).round() == 1) * (pred.view(-1).round() ==  batch_target_1)]
@@ -387,13 +385,10 @@ def evaluate(args, posenet, rootnet, detector, cls_net_1, cls_net_2, images, tar
                 #############################
 
                 pred = cls_net_2(batch_feature_2, batch_joint_info_2.cuda())
-                #loss_2 = criterion_2(pred.view(-1), batch_target_2)
+                # predict good plank or bad plank
                 correct_2 = (pred.view(-1).round() == batch_target_2).sum()
                 total_correct_2 += correct_2
-                
-
-            # print(f'loss_1: {loss_1.item()} // loss_2:{loss_2.item()}')
-
+            
             # initialization
             batch_feature = []
             batch_joint = []

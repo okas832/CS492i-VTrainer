@@ -25,7 +25,7 @@ sys.path.insert(0, osp.join('..', 'common'))
 from config import cfg
 from model import get_pose_net
 from model_rootnet import get_root_net
-from classifier import classifier
+from classifier import classifier, classifier_only_feature
 from dataset import generate_patch_image
 from utils_pose.pose_utils import process_bbox, pixel2cam
 from vtrainer_utils import xyxy2xywh, select_biggest_box, joint_angle, get_joint_info_1, plot_grad_flow, fontscale, load_data
@@ -35,7 +35,6 @@ from pathlib import Path
 import copy
 import math
 
-# evaluation function
 def evaluate(args, posenet, rootnet, detector, cls_net_1, cls_net_2, images, targets_1, targets_2):
     # Setting
     # MuCo joint set
@@ -204,7 +203,7 @@ def evaluate(args, posenet, rootnet, detector, cls_net_1, cls_net_2, images, tar
     acc_3 = total_correct_2 / gt_plank_count # 실제 plank인 이미지 중에서 좋은 plank인지 아닌지
     return acc_1*100, acc_2*100, acc_3*100
 
-# training function
+    
 def train(args, epoch, posenet, rootnet, detector, cls_net_1, cls_net_2, optimizer_1, optimizer_2, criterion_1, criterion_2, images, targets_1, targets_2,  weight_output_dir):
     # Setting
     # MuCo joint set
@@ -229,23 +228,20 @@ def train(args, epoch, posenet, rootnet, detector, cls_net_1, cls_net_2, optimiz
         target_1 = torch.tensor(targets_1[image_idx])
         target_2 = torch.tensor(targets_2[image_idx])
 
-        # Copy the image
         original_img = cv2.imread(image)
         img = copy.deepcopy(original_img)
         
-        # change the bgr to rgb
         img = img[..., ::-1]
         ############################
         #####  Detection part  #####
         ############################
         pred = detector(img)
-        # In this part, we can get top-left point and bottom-right point
+        #print(pred.xyxy[0].shape)
         pred = pred.xyxy[0]
         
-        # If there are multiple person, then select biggest one 
         if pred.shape[0] != 0:
+            # If there are multiple person, then select biggest one 
             label = select_biggest_box(pred)
-        # If there is no person in image or If detector fail detecting human in the image, we skip that image
         else:
             #If no person detection, skip 
             print('No person detected')
@@ -253,12 +249,10 @@ def train(args, epoch, posenet, rootnet, detector, cls_net_1, cls_net_2, optimiz
 
         original_img_height, original_img_width = img.shape[:2]
         # prepare bbox # xmin, ymin, width, height
-        # change the box coordinate format
         label = xyxy2xywh(label)
         bbox_list = label[:,:4]
         
         # normalized camera intrinsics
-        # we follow the Posenet setting
         focal = [1500, 1500] # x-axis, y-axis
         princpt = [original_img_width/2, original_img_height/2] # x-axis, y-axis
         
@@ -266,16 +260,15 @@ def train(args, epoch, posenet, rootnet, detector, cls_net_1, cls_net_2, optimiz
         output_pose_2d_list = []
         output_pose_3d_list = []
         
-        # Adjust the boundding box size
         bbox = process_bbox(bbox_list[0].cpu().numpy(), original_img_width, original_img_height)
-        # Crop the bounding box and resize to 256x256
         img, img2bb_trans = generate_patch_image(original_img, bbox, False, 1.0, 0.0, False) 
-        # apply the transformation(ToTensor, RandomHorizontalFlip, Normalization)
+        
         img = transform(img).cuda()[None,:,:,:]
         
-        #for rootnet. We follow the original rootnet implementation
+        #for rootnet
         k_value = np.array([math.sqrt(cfg.bbox_real[0]*cfg.bbox_real[1]*focal[0]*focal[1]/(bbox[2]*bbox[3]))]).astype(np.float32)
         k_value = torch.FloatTensor([k_value]).cuda()[None,:]
+
 
         ################################
         ##### Pose estimation part #####
@@ -283,16 +276,14 @@ def train(args, epoch, posenet, rootnet, detector, cls_net_1, cls_net_2, optimiz
         # forward
         with torch.no_grad():    
             #feature_map: [1,2048,8,8]
-            #We get 3D joint coordinate and feature map from the backbone network
             pose_3d, feature_map = posenet(img) # x,y: pixel, z: root-relative depth (mm)
-            # We get depth of root point(root is Pelvis)
             root_3d = rootnet(img, k_value)
 
         root_depth = root_3d[0,2].cpu().numpy()
 
         # inverse affine transform (restore the crop and resize)
         pose_3d = pose_3d[0].cpu().numpy()
-        # We change the predicted 3D body joint coordinate(256x256)to original image size 
+        #256,256이미지에서의 위치로 옮겨주고 
         pose_3d[:,0] = pose_3d[:,0] / cfg.output_shape[1] * cfg.input_shape[1]
         pose_3d[:,1] = pose_3d[:,1] / cfg.output_shape[0] * cfg.input_shape[0]
 
@@ -313,16 +304,16 @@ def train(args, epoch, posenet, rootnet, detector, cls_net_1, cls_net_2, optimiz
         batch_target_1.append(target_1)
         batch_target_2.append(target_2)
         
-        # It is hard to change the detector and pose estimator running as mini batch, 
-        # We accumualate the inputs for classifier in this part. 
-        # Therefore, classifiers are trained by batch size input.
+        
+        
         if len(batch_feature) == args.batch_size or i + 1 == image_length:
             
             batch_feature = torch.cat(batch_feature, dim=0).cuda()
             batch_joint = torch.cat(batch_joint, dim=0).cuda()
             batch_target_1 = torch.tensor(batch_target_1).cuda()
             batch_target_2 = torch.tensor(batch_target_2).cuda()
-
+            # import pdb
+            # pdb.set_trace()
             ###################################
             ####### classification part #######
             ###################################
@@ -343,7 +334,7 @@ def train(args, epoch, posenet, rootnet, detector, cls_net_1, cls_net_2, optimiz
             batch_feature_2 = batch_feature[(batch_target_1 == 1)]
             batch_joint_info_2 = batch_joint_info[(batch_target_1 == 1)] 
             batch_target_2 = batch_target_2[(batch_target_1 == 1)]
-            # Only the plank image feed into the second classifier
+
             if (batch_target_1 == 1).sum() != 0:
                 #############################
                 ### second classification ###
@@ -358,13 +349,14 @@ def train(args, epoch, posenet, rootnet, detector, cls_net_1, cls_net_2, optimiz
 
             print(f'loss_1: {loss_1.item()} // loss_2:{loss_2.item()}')
 
-            # initialize accumulation list
+            # initialization
             batch_feature = []
             batch_joint = []
             batch_target_1 = []
             batch_target_2 = []
 
-    # Save model at the end of epoch
+     
+    
     torch.save({
             'model_1_state_dict': cls_net_1.state_dict(),
             'model_2_state_dict': cls_net_2.state_dict()
@@ -382,10 +374,10 @@ if __name__ ==  '__main__':
     parser.add_argument('--dataset_num', type=int, default=1)
     parser.add_argument('--posenet', type=str, default='../weights/posenet_weight.pth.tar')
     parser.add_argument('--rootnet', type=str, default='../weights/rootnet_weight.pth.tar')
+    parser.add_argument('--eval', action='store_true')
 
     args = parser.parse_args()
 
-    # We predict 21 joint point from the human body
     joint_num = 21
     joints_name = ('Head_top', 'Thorax', 'R_Shoulder', 'R_Elbow', 'R_Wrist', 'L_Shoulder', 'L_Elbow', 'L_Wrist', 'R_Hip', 'R_Knee', 'R_Ankle', 'L_Hip', 'L_Knee', 'L_Ankle', 'Pelvis', 'Spine', 'Head', 'R_Hand', 'L_Hand', 'R_Toe', 'L_Toe')
     flip_pairs = ( (2, 5), (3, 6), (4, 7), (8, 11), (9, 12), (10, 13), (17, 18), (19, 20) )
@@ -432,14 +424,12 @@ if __name__ ==  '__main__':
     detector.conf = 0.5 # Confidence threshold
 
     # Load first classifier 
-    # we use 17 joint angle features in the classifier
-    cls_net_1 = classifier(17)
+    cls_net_1 = classifier_only_feature(17)
     cls_net_1.cuda()
     optimizer_1 = Adam(cls_net_1.parameters(), lr=args.lr, weight_decay=1e-5)
 
     # Load second classifier 
-    # we use 17 joint angle features in the classifier
-    cls_net_2 = classifier(17)
+    cls_net_2 = classifier_only_feature(17)
     cls_net_2.cuda()
     optimizer_2 = Adam(cls_net_2.parameters(), lr=args.lr, weight_decay=1e-5)
 
@@ -447,6 +437,7 @@ if __name__ ==  '__main__':
         ckpt = torch.load(args.cls_weight)
         cls_net_1.load_state_dict(ckpt['model_1_state_dict'])
         cls_net_2.load_state_dict(ckpt['model_2_state_dict'])
+        epoch = ckpt['epoch']
 
     # loss_functions
     criterion_1 = nn.BCELoss()
@@ -459,42 +450,55 @@ if __name__ ==  '__main__':
     test_images, test_targets_1, test_targets_2 = load_data(train=False, dataset_num=args.dataset_num)
     
     # start training 
+    
     best_acc_2 = 0
     best_epoch = 0
-    for epoch in tqdm(range(args.epochs)):
-        cls_net_1.train()
-        cls_net_2.train()
-        train(args, epoch, posenet, rootnet, detector, cls_net_1, cls_net_2, optimizer_1, optimizer_2, criterion_1, criterion_2, train_images, train_targets_1, train_targets_2, weight_output_dir)
-        with torch.no_grad():
-            
+
+    if args.eval:
+        with torch.no_grad():            
             cls_net_1.eval()
             cls_net_2.eval()
-                #acc_1, acc_2, acc_3 = evaluate_visualization(args, posenet, rootnet, detector, cls_net_1, cls_net_2, test_images, test_targets_1, test_targets_2, args.extra_tag)
             acc_1, acc_2, acc_3 = evaluate(args, posenet, rootnet, detector, cls_net_1, cls_net_2, test_images, test_targets_1, test_targets_2)
-            print(f"############# {epoch}/{args.epochs} #############")
+            print(f"############# best model : {epoch} #############")
             print(f'acc_1(plank or not): {acc_1}%')
             print(f'acc_2(good plank or not(among the total images): {acc_2}%')
             print(f'acc_3(good plank or not(among the gt plank): {acc_3}%')
 
-            if best_acc_2 < acc_2:
-                best_acc_2 = acc_2
-                best_epoch = epoch 
-                torch.save({
-                    'model_1_state_dict': cls_net_1.state_dict(),
-                    'model_2_state_dict': cls_net_2.state_dict(),
-                    'epoch' : epoch
-                }, weight_output_dir + f'best_model.pt')
+    else:
+        for epoch in tqdm(range(args.epochs)):
+            cls_net_1.train()
+            cls_net_2.train()
+            train(args, epoch, posenet, rootnet, detector, cls_net_1, cls_net_2, optimizer_1, optimizer_2, criterion_1, criterion_2, train_images, train_targets_1, train_targets_2, weight_output_dir)
+            with torch.no_grad():
+                
+                cls_net_1.eval()
+                cls_net_2.eval()
+                    #acc_1, acc_2, acc_3 = evaluate_visualization(args, posenet, rootnet, detector, cls_net_1, cls_net_2, test_images, test_targets_1, test_targets_2, args.extra_tag)
+                acc_1, acc_2, acc_3 = evaluate(args, posenet, rootnet, detector, cls_net_1, cls_net_2, test_images, test_targets_1, test_targets_2)
+                print(f"############# {epoch}/{args.epochs} #############")
+                print(f'acc_1(plank or not): {acc_1}%')
+                print(f'acc_2(good plank or not(among the total images): {acc_2}%')
+                print(f'acc_3(good plank or not(among the gt plank): {acc_3}%')
 
-    with torch.no_grad():            
-        cls_net_1.eval()
-        cls_net_2.eval()
-        ckpt = torch.load(weight_output_dir + f'best_model.pt')
-        cls_net_1.load_state_dict(ckpt['model_1_state_dict'])
-        cls_net_2.load_state_dict(ckpt['model_2_state_dict'])
-        epoch = ckpt['epoch']
+                if best_acc_2 < acc_2:
+                    best_acc_2 = acc_2
+                    best_epoch = epoch 
+                    torch.save({
+                        'model_1_state_dict': cls_net_1.state_dict(),
+                        'model_2_state_dict': cls_net_2.state_dict(),
+                        'epoch' : epoch
+                    }, weight_output_dir + f'best_model.pt')
 
-        acc_1, acc_2, acc_3 = evaluate(args, posenet, rootnet, detector, cls_net_1, cls_net_2, test_images, test_targets_1, test_targets_2)
-        print(f"############# best model : {epoch} #############")
-        print(f'acc_1(plank or not): {acc_1}%')
-        print(f'acc_2(good plank or not(among the total images): {acc_2}%')
-        print(f'acc_3(good plank or not(among the gt plank): {acc_3}%')
+        with torch.no_grad():            
+            cls_net_1.eval()
+            cls_net_2.eval()
+            ckpt = torch.load(weight_output_dir + f'best_model.pt')
+            cls_net_1.load_state_dict(ckpt['model_1_state_dict'])
+            cls_net_2.load_state_dict(ckpt['model_2_state_dict'])
+            epoch = ckpt['epoch']
+
+            acc_1, acc_2, acc_3 = evaluate(args, posenet, rootnet, detector, cls_net_1, cls_net_2, test_images, test_targets_1, test_targets_2)
+            print(f"############# best model : {epoch} #############")
+            print(f'acc_1(plank or not): {acc_1}%')
+            print(f'acc_2(good plank or not(among the total images): {acc_2}%')
+            print(f'acc_3(good plank or not(among the gt plank): {acc_3}%')

@@ -4,6 +4,7 @@ from torch.nn import functional as F
 from nets.resnet import ResNetBackbone
 from config import cfg
 
+# Our proposed classifier model
 class classifier(nn.Module):
 
     def __init__(self, joint_channels):
@@ -11,7 +12,7 @@ class classifier(nn.Module):
         self.joint_channels = joint_channels
 
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-
+        # image feature embedding block
         self.img_embed = nn.Sequential(
             nn.Conv2d(in_channels=2048, out_channels=512, kernel_size=1, stride=1,padding=0),
             nn.BatchNorm2d(512),
@@ -20,7 +21,7 @@ class classifier(nn.Module):
             nn.BatchNorm2d(256),
             nn.ReLU(True),
         )
-
+        # joint feature embedding block
         self.joint_embed = nn.Sequential(
             nn.Conv2d(in_channels=self.joint_channels, out_channels=64, kernel_size=1, stride=1,padding=0),
             nn.BatchNorm2d(64),
@@ -32,7 +33,7 @@ class classifier(nn.Module):
             nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
         )
-
+        # After concat
         self.layer = nn.Sequential(
             nn.Conv2d(in_channels=512, out_channels=512, kernel_size=1, stride=1,padding=0),
             nn.BatchNorm2d(512),
@@ -56,5 +57,83 @@ class classifier(nn.Module):
         concated_feature = torch.cat((embedded_img, embedded_joint), dim=1) # 32, 512, 1, 1
         
         out = self.layer(concated_feature)
+
+        return out
+
+# For ablation study. joint feature only model
+class classifier_only_joint(nn.Module):
+
+    def __init__(self, joint_channels):
+        super(classifier_only_joint, self).__init__()
+        self.joint_channels = joint_channels
+
+        self.joint_embed = nn.Sequential(
+            nn.Conv2d(in_channels=self.joint_channels, out_channels=64, kernel_size=1, stride=1,padding=0),
+            nn.BatchNorm2d(64),
+            nn.ReLU(True),
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=1, stride=1,padding=0),
+            nn.BatchNorm2d(128),
+            nn.ReLU(True),
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=1, stride=1,padding=0),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+        )
+
+        self.layer = nn.Sequential(
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=1, stride=1,padding=0),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=512, out_channels=1024, kernel_size=1, stride=1,padding=0),
+            nn.BatchNorm2d(1024),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=1024, out_channels=1, kernel_size=1, stride=1,padding=0),
+            nn.Sigmoid()
+        )
+
+    def forward(self, fm, joint_f):
+        
+        if len(joint_f.shape) != 4: # 32 17
+            joint_f = joint_f.unsqueeze(-1).unsqueeze(-1) # 32, 17, 1, 1
+
+        embedded_joint = self.joint_embed(joint_f) # 32, 256, 1, 1
+        
+        out = self.layer(embedded_joint)
+
+        return out
+# For ablation study. image feature only model
+class classifier_only_feature(nn.Module):
+
+    def __init__(self, joint_channels):
+        super(classifier_only_feature, self).__init__()
+        self.joint_channels = joint_channels
+
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+
+        self.img_embed = nn.Sequential(
+            nn.Conv2d(in_channels=2048, out_channels=512, kernel_size=1, stride=1,padding=0),
+            nn.BatchNorm2d(512),
+            nn.ReLU(True),
+            nn.Conv2d(in_channels=512, out_channels=256, kernel_size=1, stride=1,padding=0),
+            nn.BatchNorm2d(256),
+            nn.ReLU(True),
+        )
+
+
+        self.layer = nn.Sequential(
+            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=1, stride=1,padding=0),
+            nn.BatchNorm2d(512),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=512, out_channels=1024, kernel_size=1, stride=1,padding=0),
+            nn.BatchNorm2d(1024),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=1024, out_channels=1, kernel_size=1, stride=1,padding=0),
+            nn.Sigmoid()
+        )
+
+    def forward(self, fm, joint_f):
+        
+        embedded_img = self.img_embed(self.avgpool(fm)) # 32, 256, 1, 1
+
+        out = self.layer(embedded_img)
 
         return out
