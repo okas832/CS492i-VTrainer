@@ -9,7 +9,30 @@ This repository for CS492(I) final project.
 We implemented Work-out pose evaluator for personal training.  
 
   
-  
+
+Our implemented code is in 'main' directory
+
+
+'vtrainer_train.py': training code
+
+
+'vtrainer_test.py': evaluation code
+
+
+'classifier.py': Define classifier model
+
+
+'vtrainer_utils.py': Define util funtion for vtrainer
+
+
+'vtrainer_train_only_feature.py': for ablation study. only image feature model train and eval code
+
+
+'vtrainer_train_only_joint.py': for ablation study. only joint feature model train and eval code
+
+
+'split.py': for create data split
+
 
 ## How to run
 
@@ -151,7 +174,22 @@ python vtrainer_test.py --gpu 0 --dataset_num 1 --cls_weight ../weights/classfie
 
 ```
 
-  
+### Train/eval joint only model and image only model
+
+```
+# train joint only model with dataset number 1
+python vtrainer_train_only_joint.py --gpu 1 --dataset_num 1 --extra_tag only_joint/
+# train image feature only model with dataset number 1
+python vtrainer_train_only_feature.py --gpu 1 --dataset_num 1 --extra_tag only_feature/
+```
+
+
+```
+# Evaluate only image feature model with dataset number 1
+python vtrainer_train_only_feature.py --gpu 1 --dataset_num 1 --cls_weight ../weights/classfier/only_feature/best_model.pt --eval;
+# Evaluate only image feature model with dataset number 1
+python vtrainer_train_only_joint.py --gpu 1 --dataset_num 1 --cls_weight ../weights/classfier/only_joint/best_model.pt --eval;
+```
 
 ### dependencies
 
