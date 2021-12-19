@@ -239,6 +239,19 @@ Directory should be look like this.
 
 'CS492i-VTrainer/dataset/good'
 
+
+'CS492i-VTrainer/dataset/train_1'
+
+'CS492i-VTrainer/dataset/test_1'
+
+'CS492i-VTrainer/dataset/train_2'
+
+'CS492i-VTrainer/dataset/test_2'
+
+'CS492i-VTrainer/dataset/train_3'
+
+'CS492i-VTrainer/dataset/test_3'
+
   
 
 ### Weights
